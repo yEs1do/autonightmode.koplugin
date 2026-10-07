@@ -171,7 +171,12 @@ function ScheduledDisplay:_buildEditItems(e)
                 sort(self.schedule)
                 self:save()
                 self:reschedule()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
+                if touchmenu_instance then
+                    if touchmenu_instance.item_table_stack and #touchmenu_instance.item_table_stack > 0 then
+                        touchmenu_instance.item_table_stack[#touchmenu_instance.item_table_stack] = self:_buildScheduleItems()
+                    end
+                    touchmenu_instance:updateItems()
+                end
             end,touchmenu_instance)
         end,
         keep_menu_open=true,
@@ -286,7 +291,10 @@ function ScheduledDisplay:_delete(e,parent_menu)
             end
             self:save()
             self:reschedule()
-            if parent_menu then parent_menu:updateItems() end
+            if parent_menu then
+                parent_menu.item_table=self:_buildScheduleItems()
+                parent_menu:updateItems()
+            end
         end,
     })
 end
