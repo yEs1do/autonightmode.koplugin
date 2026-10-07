@@ -121,39 +121,27 @@ function ScheduledDisplay:_buildScheduleItems()
     local items={{
         text=_("添加时间点"),
         enabled_func=function() return #self.schedule<MAX end,
-        callback=function() self:_add() end,
+        callback=function(touchmenu_instance) self:_add(touchmenu_instance) end,
+        separator=true,
     }}
     for _,e in ipairs(self.schedule) do
         local entry=e
         table.insert(items,{
-            text=clock(entry.time).."  "..self:_summary(entry),
-            callback=function() self:_edit(find(self.schedule,entry)) end,
-            hold_callback=function() self:_delete(entry) end,
+            text_func=function() return clock(entry.time).."  "..self:_summary(entry) end,
+            callback=function(touchmenu_instance)
+                local i=find(self.schedule,entry)
+                if i then self:_edit(i,touchmenu_instance) end
+            end,
+            hold_callback=function(touchmenu_instance)
+                self:_delete(entry,touchmenu_instance)
+            end,
         })
     end
     return items
 end
 
-function ScheduledDisplay:_showScheduleMenu()
-    self.schedule_menu=Menu:new{
-        title=_("时间表"),
-        item_table=self:_buildScheduleItems(),
-        show_parent=self.ui,
-    }
-    UIManager:show(self.schedule_menu)
-end
 
-function ScheduledDisplay:_refreshScheduleMenu()
-    if self.schedule_menu and type(self.schedule_menu.switchItemTable)=="function" then
-        self.schedule_menu:switchItemTable(_("时间表"),self:_buildScheduleItems())
-    end
-    if self.edit_menu and type(self.edit_menu.updateItems)=="function" then
-        self.edit_menu:updateItems()
-    end
-end
-
-
-function ScheduledDisplay:_edit(i)
+function ScheduledDisplay:_edit(i,parent_menu)
     local e=self.schedule[i]; if not e then return end
     local items={{
         text_func=function() return T(_("时间：%1"),clock(e.time)) end,
@@ -169,8 +157,9 @@ function ScheduledDisplay:_edit(i)
                 sort(self.schedule)
                 self:save()
                 self:reschedule()
-                self:_refreshScheduleMenu()
-            end)
+                if self.edit_menu then self.edit_menu:updateItems() end
+                if parent_menu then parent_menu:updateItems() end
+            end,self.edit_menu,parent_menu)
         end,
         keep_menu_open=true,
     }}
@@ -179,7 +168,7 @@ function ScheduledDisplay:_edit(i)
             text_func=function()
                 return T(_("前光亮度：%1"),e.brightness==UNCHANGED and _("不调整") or native(e.brightness,Powerd.fl_max))
             end,
-            callback=function() self:_number(e,"brightness",Powerd.fl_max) end,
+            callback=function(touchmenu_instance) self:_number(e,"brightness",Powerd.fl_max,touchmenu_instance) end,
             keep_menu_open=true,
         })
     end
@@ -188,7 +177,7 @@ function ScheduledDisplay:_edit(i)
             text_func=function()
                 return T(_("色温：%1"),e.warmth==UNCHANGED and _("不调整") or native(e.warmth,Powerd.fl_warmth_max))
             end,
-            callback=function() self:_number(e,"warmth",Powerd.fl_warmth_max) end,
+            callback=function(touchmenu_instance) self:_number(e,"warmth",Powerd.fl_warmth_max,touchmenu_instance) end,
             keep_menu_open=true,
         })
     end
@@ -198,7 +187,7 @@ function ScheduledDisplay:_edit(i)
                 local v=e.night_mode==UNCHANGED and _("不调整") or e.night_mode=="on" and _("开启") or _("关闭")
                 return T(_("夜间模式（反色）：%1"),v)
             end,
-            callback=function() self:_night(e) end,
+            callback=function(touchmenu_instance) self:_night(e,touchmenu_instance) end,
             keep_menu_open=true,
         })
     end
@@ -207,25 +196,29 @@ function ScheduledDisplay:_edit(i)
 end
 
 
-function ScheduledDisplay:_time(initial,cb)
+function ScheduledDisplay:_time(initial,cb,parent_menu,parent_schedule_menu)
     local h=math.floor(initial/60);local m=initial%60
     UIManager:show(SpinWidget:new{
         title_text=_("小时"),
         value=h,value_min=0,value_max=23,value_step=1,
-        ok_always_enabled=true,
+        value_hold_step=1,wrap=true,ok_always_enabled=true,
         callback=function(a)
             UIManager:show(SpinWidget:new{
                 title_text=_("分钟"),
                 value=m,value_min=0,value_max=55,value_step=5,
-                ok_always_enabled=true,
-                callback=function(b) cb(a.value*60+b.value) end,
+                value_hold_step=5,wrap=true,ok_always_enabled=true,
+                callback=function(b)
+                    cb(a.value*60+b.value)
+                    if parent_menu then parent_menu:updateItems() end
+                    if parent_schedule_menu and parent_schedule_menu~=parent_menu then parent_schedule_menu:updateItems() end
+                end,
             })
         end,
     })
 end
 
 
-function ScheduledDisplay:_number(e,key,max)
+function ScheduledDisplay:_number(e,key,max,parent_menu)
     local cur=e[key]==UNCHANGED and (key=="brightness" and Powerd:frontlightIntensity() or Powerd:toNativeWarmth(Powerd:frontlightWarmth())) or native(e[key],max)
     UIManager:show(SpinWidget:new{
         title_text=key=="brightness" and _("前光亮度") or _("色温"),
@@ -234,18 +227,18 @@ function ScheduledDisplay:_number(e,key,max)
         extra_callback=function()
             e[key]=UNCHANGED
             self:save()
-            self:_refreshScheduleMenu()
+            if parent_menu then parent_menu:updateItems() end
         end,
         callback=function(s)
             e[key]=norm(s.value,max)
             self:save()
-            self:_refreshScheduleMenu()
+            if parent_menu then parent_menu:updateItems() end
         end,
     })
 end
 
 
-function ScheduledDisplay:_night(e)
+function ScheduledDisplay:_night(e,parent_menu)
     UIManager:show(RadioButtonWidget:new{
         title_text=_("夜间模式（反色）"),
         radio_buttons={
@@ -256,13 +249,13 @@ function ScheduledDisplay:_night(e)
         callback=function(w)
             e.night_mode=w.provider
             self:save()
-            self:_refreshScheduleMenu()
+            if parent_menu then parent_menu:updateItems() end
         end,
     })
 end
 
 
-function ScheduledDisplay:_delete(e)
+function ScheduledDisplay:_delete(e,parent_menu)
     UIManager:show(ConfirmBox:new{
         text=T(_("确定删除 %1 的自动显示设置吗？"),clock(e.time)),
         ok_text=_("删除"),cancel_text=_("取消"),
@@ -276,13 +269,13 @@ function ScheduledDisplay:_delete(e)
             end
             self:save()
             self:reschedule()
-            self:_refreshScheduleMenu()
+            if parent_menu then parent_menu:updateItems() end
         end,
     })
 end
 
 
-function ScheduledDisplay:_add()
+function ScheduledDisplay:_add(parent_menu)
     if #self.schedule>=MAX then
         UIManager:show(InfoMessage:new{text=T(_("最多只能设置 %1 个时间点。"),MAX),timeout=2})
         return
@@ -290,16 +283,17 @@ function ScheduledDisplay:_add()
     self:_time(now()-now()%STEP,function(t)
         local i=find(self.schedule,t)
         if i then
-            self:_edit(i)
+            self:_edit(i,parent_menu)
             return
         end
         local e={time=t,brightness=UNCHANGED,warmth=UNCHANGED,night_mode=UNCHANGED}
         table.insert(self.schedule,e)
         sort(self.schedule)
         self:save()
-        self:_refreshScheduleMenu()
-        self:_edit(find(self.schedule,t))
-    end)
+        if self.enabled then self:reschedule() end
+        if parent_menu then parent_menu:updateItems() end
+        self:_edit(find(self.schedule,t),parent_menu)
+    end,parent_menu)
 end
 
 
@@ -316,12 +310,14 @@ function ScheduledDisplay:getMenu()
     local m={{
         text_func=function() return self.enabled and _("自动调节：已启用") or _("自动调节：已停用") end,
         checked_func=function() return self.enabled end,
-        callback=function() self:_setEnabled(not self.enabled) end,
+        callback=function(touchmenu_instance) self:_setEnabled(not self.enabled,touchmenu_instance) end,
         keep_menu_open=true,
     },{
         text=_("时间表"),
-        callback=function() self:_showScheduleMenu() end,
-        keep_menu_open=true,
+        enabled_func=function() return #self.schedule>0 end,
+        sub_item_table_func=function()
+            return self:_buildScheduleItems()
+        end,
     },{
         text=_("立即切换"),
         enabled_func=function() return self.enabled and #self.schedule>0 end,
@@ -330,16 +326,17 @@ function ScheduledDisplay:getMenu()
     },{
         text_func=function() return self.smooth and _("亮度与色温变化：平滑") or _("亮度与色温变化：立即") end,
         checked_func=function() return self.smooth end,
-        callback=function()
+        callback=function(touchmenu_instance)
             self.smooth=not self.smooth
             self:save()
             self:reschedule()
+            if touchmenu_instance then touchmenu_instance:updateItems() end
         end,
         keep_menu_open=true,
     },{
         text_func=function() return T(_("变化时间：%1 秒"),self.duration) end,
         enabled_func=function() return self.smooth end,
-        callback=function()
+        callback=function(touchmenu_instance)
             UIManager:show(SpinWidget:new{
                 title_text=_("平滑变化时间"),
                 value=self.duration,
@@ -350,7 +347,7 @@ function ScheduledDisplay:getMenu()
                 callback=function(s)
                     self.duration=s.value
                     self:save()
-                    self:reschedule()
+                    if touchmenu_instance then touchmenu_instance:updateItems() end
                 end,
             })
         end,
@@ -358,9 +355,10 @@ function ScheduledDisplay:getMenu()
     },{
         text_func=function() return self.notify and _("自动切换提示：已开启") or _("自动切换提示：已关闭") end,
         checked_func=function() return self.notify end,
-        callback=function()
+        callback=function(touchmenu_instance)
             self.notify=not self.notify
             self:save()
+            if touchmenu_instance then touchmenu_instance:updateItems() end
         end,
         keep_menu_open=true,
     }}
