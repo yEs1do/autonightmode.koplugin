@@ -4,6 +4,31 @@
 
 > 当前版本：0.0.5
 
+## 目录结构
+
+当前仓库结构：
+
+```text
+autonightmode.koplugin/
+├── scheduleddisplay.koplugin/
+│   ├── _meta.lua
+│   └── main.lua
+├── .github/
+│   └── workflows/
+│       └── publish-release.yml
+├── CHANGELOG.md
+├── LICENSE
+└── README.md
+```
+
+其中：
+
+- `scheduleddisplay.koplugin/`：实际安装到 KOReader `plugins/` 目录的插件主体。
+- `_meta.lua`：插件名称、描述、版本等元信息。
+- `main.lua`：自动显示调节的核心逻辑。
+- `CHANGELOG.md`：版本变更记录。
+- `.github/workflows/publish-release.yml`：版本发布自动化流程。
+
 ## 主要功能
 
 - 最多 **24 个时间点**
