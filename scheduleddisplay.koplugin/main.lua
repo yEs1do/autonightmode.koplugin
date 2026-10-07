@@ -117,22 +117,6 @@ function ScheduledDisplay:reschedule()
     self.task=function() self.task=nil;self:apply(true);if self.notify then UIManager:show(InfoMessage:new{text=_("自动显示调节：已应用当前时间点。"),timeout=2}) end;self:reschedule() end
     UIManager:scheduleIn(d*60-os.date("*t").sec,self.task,self)
 end
-function ScheduledDisplay:_summary(e)
-    local p={}
-    if Device:hasFrontlight() and e.brightness~=UNCHANGED then
-        table.insert(p,T(_("亮度%1"),native(e.brightness,Powerd.fl_max)))
-    end
-    if hasWarmth() and e.warmth~=UNCHANGED then
-        table.insert(p,T(_("色温%1"),native(e.warmth,Powerd.fl_warmth_max)))
-    end
-    if hasNight() and e.night_mode=="on" then
-        table.insert(p,_("反色开"))
-    elseif hasNight() and e.night_mode=="off" then
-        table.insert(p,_("反色关"))
-    end
-    return #p>0 and table.concat(p,"·") or _("不调整")
-end
-
 function ScheduledDisplay:_buildScheduleItems()
     local items={{
         text=_("添加时间点"),
@@ -150,52 +134,76 @@ function ScheduledDisplay:_buildScheduleItems()
     return items
 end
 
+function ScheduledDisplay:_showScheduleMenu()
+    self.schedule_menu=Menu:new{
+        title=_("时间表"),
+        item_table=self:_buildScheduleItems(),
+        show_parent=self.ui,
+    }
+    UIManager:show(self.schedule_menu)
+end
+
 function ScheduledDisplay:_refreshScheduleMenu()
-    local items=self:_buildScheduleItems()
-    self.schedule_items=self.schedule_items or {}
-    for i=#self.schedule_items,1,-1 do self.schedule_items[i]=nil end
-    for i,item in ipairs(items) do self.schedule_items[i]=item end
-    local menu=UIManager:getTopmostVisibleWidget()
-    if menu and menu.item_table==self.schedule_items and type(menu.updateItems)=="function" then
-        menu:updateItems()
+    if self.schedule_menu and type(self.schedule_menu.switchItemTable)=="function" then
+        self.schedule_menu:switchItemTable(_("时间表"),self:_buildScheduleItems())
+    end
+    if self.edit_menu and type(self.edit_menu.updateItems)=="function" then
+        self.edit_menu:updateItems()
     end
 end
 
 
 function ScheduledDisplay:_edit(i)
     local e=self.schedule[i]; if not e then return end
-    local items={{text=T(_("时间：%1"),clock(e.time)),callback=function()
-        self:_time(e.time,function(t)
-            local old_i=find(self.schedule,e.time)
-            local new_i=find(self.schedule,t)
-            if new_i and new_i~=old_i then
-                UIManager:show(InfoMessage:new{text=_("该时间点已存在。"),timeout=2})
-                return
-            end
-            e.time=t
-            sort(self.schedule)
-            self:save()
-            self:reschedule()
-            self:_refreshScheduleMenu()
-        end)
-    end,keep_menu_open=true}}
+    local items={{
+        text_func=function() return T(_("时间：%1"),clock(e.time)) end,
+        callback=function()
+            self:_time(e.time,function(t)
+                local old_i=find(self.schedule,e.time)
+                local new_i=find(self.schedule,t)
+                if new_i and new_i~=old_i then
+                    UIManager:show(InfoMessage:new{text=_("该时间点已存在。"),timeout=2})
+                    return
+                end
+                e.time=t
+                sort(self.schedule)
+                self:save()
+                self:reschedule()
+                self:_refreshScheduleMenu()
+            end)
+        end,
+        keep_menu_open=true,
+    }}
     if Device:hasFrontlight() then
-        table.insert(items,{text_func=function()
-            return T(_("前光亮度：%1"),e.brightness==UNCHANGED and _("不调整") or native(e.brightness,Powerd.fl_max))
-        end,callback=function() self:_number(e,"brightness",Powerd.fl_max) end,keep_menu_open=true})
+        table.insert(items,{
+            text_func=function()
+                return T(_("前光亮度：%1"),e.brightness==UNCHANGED and _("不调整") or native(e.brightness,Powerd.fl_max))
+            end,
+            callback=function() self:_number(e,"brightness",Powerd.fl_max) end,
+            keep_menu_open=true,
+        })
     end
     if hasWarmth() then
-        table.insert(items,{text_func=function()
-            return T(_("色温：%1"),e.warmth==UNCHANGED and _("不调整") or native(e.warmth,Powerd.fl_warmth_max))
-        end,callback=function() self:_number(e,"warmth",Powerd.fl_warmth_max) end,keep_menu_open=true})
+        table.insert(items,{
+            text_func=function()
+                return T(_("色温：%1"),e.warmth==UNCHANGED and _("不调整") or native(e.warmth,Powerd.fl_warmth_max))
+            end,
+            callback=function() self:_number(e,"warmth",Powerd.fl_warmth_max) end,
+            keep_menu_open=true,
+        })
     end
     if hasNight() then
-        table.insert(items,{text_func=function()
-            local v=e.night_mode==UNCHANGED and _("不调整") or e.night_mode=="on" and _("开启") or _("关闭")
-            return T(_("夜间模式（反色）：%1"),v)
-        end,callback=function() self:_night(e) end,keep_menu_open=true})
+        table.insert(items,{
+            text_func=function()
+                local v=e.night_mode==UNCHANGED and _("不调整") or e.night_mode=="on" and _("开启") or _("关闭")
+                return T(_("夜间模式（反色）：%1"),v)
+            end,
+            callback=function() self:_night(e) end,
+            keep_menu_open=true,
+        })
     end
-    UIManager:show(Menu:new{title=_("编辑时间点"),item_table=items,show_parent=self.ui})
+    self.edit_menu=Menu:new{title=_("编辑时间点"),item_table=items,show_parent=self.ui}
+    UIManager:show(self.edit_menu)
 end
 
 
@@ -226,13 +234,11 @@ function ScheduledDisplay:_number(e,key,max)
         extra_callback=function()
             e[key]=UNCHANGED
             self:save()
-            if self.enabled then self:apply(true);self:reschedule() end
             self:_refreshScheduleMenu()
         end,
         callback=function(s)
             e[key]=norm(s.value,max)
             self:save()
-            if self.enabled then self:apply(true);self:reschedule() end
             self:_refreshScheduleMenu()
         end,
     })
@@ -250,7 +256,6 @@ function ScheduledDisplay:_night(e)
         callback=function(w)
             e.night_mode=w.provider
             self:save()
-            if self.enabled then self:apply(true);self:reschedule() end
             self:_refreshScheduleMenu()
         end,
     })
@@ -308,7 +313,6 @@ function ScheduledDisplay:hasAutoWarmthConflict()
     return G_reader_settings:nilOrTrue("autowarmth_control_warmth") or G_reader_settings:nilOrTrue("autowarmth_control_nightmode") or G_reader_settings:isTrue("autowarmth_fl_off_during_day")
 end
 function ScheduledDisplay:getMenu()
-    self.schedule_items=self:_buildScheduleItems()
     local m={{
         text_func=function() return self.enabled and _("自动调节：已启用") or _("自动调节：已停用") end,
         checked_func=function() return self.enabled end,
@@ -316,7 +320,13 @@ function ScheduledDisplay:getMenu()
         keep_menu_open=true,
     },{
         text=_("时间表"),
-        sub_item_table=self.schedule_items,
+        callback=function() self:_showScheduleMenu() end,
+        keep_menu_open=true,
+    },{
+        text=_("立即切换"),
+        enabled_func=function() return self.enabled and #self.schedule>0 end,
+        callback=function() self:apply(true) end,
+        keep_menu_open=true,
     },{
         text_func=function() return self.smooth and _("亮度与色温变化：平滑") or _("亮度与色温变化：立即") end,
         checked_func=function() return self.smooth end,
@@ -336,7 +346,7 @@ function ScheduledDisplay:getMenu()
                 value_min=RAMP_MIN,value_max=RAMP_MAX,value_step=RAMP_STEP,
                 value_hold_step=RAMP_STEP,
                 default_value=5,
-                default_text=_("默认值 5 秒"),
+                default_text=_("5 秒"),
                 callback=function(s)
                     self.duration=s.value
                     self:save()
