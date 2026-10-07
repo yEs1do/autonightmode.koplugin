@@ -117,6 +117,23 @@ function ScheduledDisplay:reschedule()
     self.task=function() self.task=nil;self:apply(true);if self.notify then UIManager:show(InfoMessage:new{text=_("自动显示调节：已应用当前时间点。"),timeout=2}) end;self:reschedule() end
     UIManager:scheduleIn(d*60-os.date("*t").sec,self.task,self)
 end
+function ScheduledDisplay:_summary(e)
+    local b = e.brightness == UNCHANGED and _("不调整") or tostring(native(e.brightness, Powerd.fl_max))
+    local w
+    if hasWarmth() then
+        w = e.warmth == UNCHANGED and _("不调整") or tostring(native(e.warmth, Powerd.fl_warmth_max))
+    else
+        w = _("不可用")
+    end
+    local n
+    if hasNight() then
+        n = e.night_mode == UNCHANGED and _("不调整") or (e.night_mode == "on" and _("开") or _("关"))
+    else
+        n = _("不可用")
+    end
+    return T(_("亮度%1·色温%2·反色%3"), b, w, n)
+end
+
 function ScheduledDisplay:_buildScheduleItems()
     local items={{
         text=_("添加时间点"),
