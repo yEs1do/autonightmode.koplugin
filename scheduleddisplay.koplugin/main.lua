@@ -121,24 +121,25 @@ function ScheduledDisplay:_buildScheduleItems()
     local items={{
         text=_("添加时间点"),
         enabled_func=function() return #self.schedule<MAX end,
-        callback=function(parent_menu) self:_add(parent_menu) end,
+        callback=function(touchmenu_instance) self:_add(touchmenu_instance) end,
         separator=true,
     }}
     for _,e in ipairs(self.schedule) do
         local entry=e
         table.insert(items,{
-            text=clock(entry.time).."  "..self:_summary(entry),
-            callback=function(parent_menu)
+            text_func=function() return clock(entry.time).."  "..self:_summary(entry) end,
+            callback=function(touchmenu_instance)
                 local i=find(self.schedule,entry)
-                if i then self:_edit(i,parent_menu) end
+                if i then self:_edit(i,touchmenu_instance) end
             end,
-            hold_callback=function(parent_menu)
-                self:_delete(entry,parent_menu)
+            hold_callback=function(touchmenu_instance)
+                self:_delete(entry,touchmenu_instance)
             end,
         })
     end
     return items
 end
+
 
 function ScheduledDisplay:_edit(i,parent_menu)
     local e=self.schedule[i]; if not e then return end
