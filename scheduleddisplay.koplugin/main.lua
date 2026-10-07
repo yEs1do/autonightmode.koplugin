@@ -10,6 +10,8 @@ local LuaSettings = require("luasettings")
 local DataStorage = require("datastorage")
 local _ = require("gettext")
 local T = require("ffi/util").template
+local time = require("ui/time")
+local logger = require("logger")
 
 local Powerd = Device:getPowerDevice()
 local FILE = DataStorage:getSettingsDir() .. "/scheduleddisplay.lua"
@@ -17,7 +19,7 @@ local UNCHANGED = "unchanged"
 local MAX = 24
 local STEP = 5
 local RAMP_MIN, RAMP_MAX, RAMP_STEP = 5, 60, 5
-local RAMP_INTERVAL = 0.1
+local RAMP_INTERVAL = 0.05
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local function round(v) return math.floor(v + .5) end
@@ -73,7 +75,13 @@ function ScheduledDisplay:save()
 end
 function ScheduledDisplay:cancelRamp()
     if self.ramp then UIManager:unschedule(self.ramp) end
-    self.ramp=nil; self.expected_b=nil; self.expected_w=nil; self.ramp_token=(self.ramp_token or 0)+1
+    self.ramp=nil
+    self.ramp_applying=false
+    self.ramp_last_b=nil
+    self.ramp_last_w=nil
+    self.expected_b=nil
+    self.expected_w=nil
+    self.ramp_token=(self.ramp_token or 0)+1
 end
 function ScheduledDisplay:apply(allow_smooth)
     local s=effective(self.schedule,now()); local tb=Device:hasFrontlight() and native(s.brightness,Powerd.fl_max) or nil
@@ -90,20 +98,56 @@ function ScheduledDisplay:apply(allow_smooth)
         if nw then Powerd:setWarmth(Powerd:fromNativeWarmth(tw)) end
         return
     end
-    local from_b,to_b=cb,tb; local from_w,to_w=cw,tw
-    local token=(self.ramp_token or 0)+1; self.ramp_token=token
-    local start=UIManager:getElapsedTimeSinceBoot()
+    local from_b,to_b=cb,tb
+    local from_w,to_w=cw,tw
+    local duration_s=math.max(0.1,tonumber(self.duration) or RAMP_MIN)
+    local token=(self.ramp_token or 0)+1
+    self.ramp_token=token
+    local start=time.now()
+    self.ramp_last_b=cb
+    self.ramp_last_w=cw
     self.ramp=function()
         if token~=self.ramp_token or not self.enabled then return end
-        local p=clamp((UIManager:getElapsedTimeSinceBoot()-start)/self.duration,0,1)
+        local elapsed=time.to_s(time.now()-start)
+        local p=clamp(elapsed/duration_s,0,1)
         local e=.5-.5*math.cos(math.pi*p)
-        if nb then local v=round(from_b+(to_b-from_b)*e); self.expected_b=v; Powerd:setIntensity(v,true) end
-        if nw then local v=round(from_w+(to_w-from_w)*e); self.expected_w=v; Powerd:setWarmth(Powerd:fromNativeWarmth(v)) end
+
+        self.ramp_applying=true
+        if nb then
+            local v=round(from_b+(to_b-from_b)*e)
+            if v~=self.ramp_last_b then
+                self.ramp_last_b=v
+                Powerd:setIntensity(v,true)
+            end
+        end
+        if nw then
+            local v=round(from_w+(to_w-from_w)*e)
+            if v~=self.ramp_last_w then
+                self.ramp_last_w=v
+                Powerd:setWarmth(Powerd:fromNativeWarmth(v))
+            end
+        end
+        self.ramp_applying=false
+
         if p>=1 then
-            if nb then Powerd:setIntensity(to_b,true) end; if nw then Powerd:setWarmth(Powerd:fromNativeWarmth(to_w)) end
-            self.ramp=nil;self.expected_b=nil;self.expected_w=nil
-        else UIManager:scheduleIn(RAMP_INTERVAL,self.ramp,self) end
+            self.ramp_applying=true
+            if nb then
+                Powerd:setIntensity(to_b,true)
+                self.ramp_last_b=to_b
+            end
+            if nw then
+                Powerd:setWarmth(Powerd:fromNativeWarmth(to_w))
+                self.ramp_last_w=to_w
+            end
+            self.ramp_applying=false
+            self.ramp=nil
+            self.ramp_last_b=nil
+            self.ramp_last_w=nil
+        else
+            UIManager:scheduleIn(RAMP_INTERVAL,self.ramp,self)
+        end
     end
+    logger.dbg("ScheduledDisplay: smooth ramp",from_b,to_b,from_w,to_w,duration_s)
     self.ramp()
 end
 function ScheduledDisplay:reschedule()
@@ -311,12 +355,11 @@ function ScheduledDisplay:_add(parent_menu)
             if parent_menu then
                 parent_menu.item_table=self:_buildScheduleItems()
                 parent_menu:updateItems()
-                local item=parent_menu.item_table[i+1]
-                if item then
-                    item.idx=i+1
-                    parent_menu:onMenuSelect(item)
-                end
             end
+            UIManager:show(InfoMessage:new{
+                text=T(_("该时间点已存在：%1。请在时间表中点击该时间点进行编辑。"),clock(t)),
+                timeout=4,
+            })
             return
         end
         local e={time=t,brightness=UNCHANGED,warmth=UNCHANGED,night_mode=UNCHANGED}
@@ -327,13 +370,11 @@ function ScheduledDisplay:_add(parent_menu)
         if parent_menu then
             parent_menu.item_table=self:_buildScheduleItems()
             parent_menu:updateItems()
-            local index=find(self.schedule,t)
-            local item=index and parent_menu.item_table[index+1]
-            if item then
-                item.idx=index+1
-                parent_menu:onMenuSelect(item)
-            end
         end
+        UIManager:show(InfoMessage:new{
+            text=T(_("已添加 %1。三个参数默认均为“不调整”，可在时间表中点击该时间点进行设置。"),clock(t)),
+            timeout=4,
+        })
     end,parent_menu)
 end
 
