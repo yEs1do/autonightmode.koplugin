@@ -1,0 +1,53 @@
+name: Publish release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scheduleddisplay.koplugin/_meta.lua
+      - .github/workflows/publish-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: meta
+        shell: bash
+        run: |
+          version=$(sed -n 's/.*version = "\([^"]*\)".*/\1/p' scheduleddisplay.koplugin/_meta.lua)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Update repository description
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh repo edit "$GITHUB_REPOSITORY" --description "KOReader 插件：按时间表自动调整前光亮度、色温和夜间模式，支持设备原生档位、平滑变化与锁屏唤醒自动校正。"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${{ steps.meta.outputs.version }}"
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists."
+            exit 0
+          fi
+
+          awk -v v="$version" '
+            $0 == "## " v { found=1; next }
+            /^## / && found { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+
+          test -s /tmp/release-notes.md
+          gh release create "$tag"             --target "$GITHUB_SHA"             --title "$tag"             --notes-file /tmp/release-notes.md
