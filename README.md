@@ -4,30 +4,32 @@
 
 > 当前正式版本：0.1.0
 
-## 目录结构
+## KOReader 菜单结构
 
-当前仓库结构：
+安装并启用插件后，在 KOReader 中的入口及菜单层级如下：
 
 ```text
-autonightmode.koplugin/
-├── scheduleddisplay.koplugin/
-│   ├── _meta.lua
-│   └── main.lua
-├── .github/
-│   └── workflows/
-│       └── publish-release.yml
-├── CHANGELOG.md
-├── LICENSE
-└── README.md
+设置
+└── 屏幕
+    └── 自动显示调节
+        ├── 自动调节：已启用 / 已停用
+        ├── 时间表
+        │   ├── 添加时间点
+        │   ├── 07:00  亮度18·色温6·反色关
+        │   ├── 18:00  亮度12·色温18·反色不调整
+        │   └── 23:00  亮度6·色温不调整·反色开
+        │       └── 点击后进入编辑
+        │           ├── 时间
+        │           ├── 前光亮度
+        │           ├── 色温
+        │           └── 夜间模式（反色）
+        ├── 立即切换
+        ├── 亮度与色温变化：平滑 / 立即
+        ├── 变化时间：5–60 秒
+        └── 自动切换提示：开启 / 关闭
 ```
 
-其中：
-
-- `scheduleddisplay.koplugin/`：实际安装到 KOReader `plugins/` 目录的插件主体。
-- `_meta.lua`：插件名称、描述、版本等元信息。
-- `main.lua`：自动显示调节的核心逻辑。
-- `CHANGELOG.md`：版本变更记录。
-- `.github/workflows/publish-release.yml`：版本发布自动化流程。
+实际显示的菜单项目会根据设备能力变化：没有前光时隐藏亮度选项，没有自然光/暖光时隐藏色温选项，不支持夜间模式时隐藏反色选项；检测到 AutoWarmth 冲突时，菜单顶部还会显示提示。
 
 ## 主要功能
 
