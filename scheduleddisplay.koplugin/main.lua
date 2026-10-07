@@ -468,10 +468,17 @@ end
 
 
 function ScheduledDisplay:onInputEvent()
-    if not self.ramp then return end
-    local b=Device:hasFrontlight() and self.expected_b~=nil and Powerd:frontlightIntensity()~=self.expected_b
-    local w=hasWarmth() and self.expected_w~=nil and Powerd:toNativeWarmth(Powerd:frontlightWarmth())~=self.expected_w
-    if b or w then self:cancelRamp() end
+    if not self.ramp or self.ramp_applying then return end
+    local b=Device:hasFrontlight()
+        and self.ramp_last_b~=nil
+        and Powerd:frontlightIntensity()~=self.ramp_last_b
+    local w=hasWarmth()
+        and self.ramp_last_w~=nil
+        and Powerd:toNativeWarmth(Powerd:frontlightWarmth())~=self.ramp_last_w
+    if b or w then
+        logger.dbg("ScheduledDisplay: manual light change detected, cancelling ramp")
+        self:cancelRamp()
+    end
 end
 function ScheduledDisplay:onSuspend()self:cancelRamp();if self.task then UIManager:unschedule(self.task);self.task=nil end end
 function ScheduledDisplay:onResume()if self.enabled then self:apply(false);self:reschedule()end end
