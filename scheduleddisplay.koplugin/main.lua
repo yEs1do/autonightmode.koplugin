@@ -126,7 +126,7 @@ function ScheduledDisplay:_summary(e)
 end
 function ScheduledDisplay:_edit(i,parent)
     local e=self.schedule[i]; if not e then return end
-    local items={{text=T(_("时间：%1"),clock(e.time)),callback=function() self:_time(e.time,function(t) if find(self.schedule,t) and find(self.schedule,t)~=i then UIManager:show(InfoMessage:new{text=_("该时间点已存在。"),timeout=2});return end e.time=t;sort(self.schedule);self:save();self:reschedule();if parent then parent:updateItems() end end,parent),keep_menu_open=true}}
+    local items={{text=T(_("时间：%1"),clock(e.time)),callback=function() self:_time(e.time,function(t) if find(self.schedule,t) and find(self.schedule,t)~=i then UIManager:show(InfoMessage:new{text=_("该时间点已存在。"),timeout=2});return end e.time=t;sort(self.schedule);self:save();self:reschedule();if parent then parent:updateItems() end end,parent) end,keep_menu_open=true}}
     if Device:hasFrontlight() then table.insert(items,{text_func=function()return T(_("前光亮度：%1"),e.brightness==UNCHANGED and _('不调整') or native(e.brightness,Powerd.fl_max))end,callback=function(m)self:_number(e,"brightness",Powerd.fl_max,m)end,keep_menu_open=true})end
     if hasWarmth() then table.insert(items,{text_func=function()return T(_("色温：%1"),e.warmth==UNCHANGED and _('不调整') or native(e.warmth,Powerd.fl_warmth_max))end,callback=function(m)self:_number(e,"warmth",Powerd.fl_warmth_max,m)end,keep_menu_open=true})end
     if hasNight() then table.insert(items,{text_func=function()local v=e.night_mode==UNCHANGED and _('不调整') or e.night_mode=='on' and _('开启') or _('关闭');return T(_("夜间模式（反色）：%1"),v)end,callback=function(m)self:_night(e,m)end,keep_menu_open=true})end
