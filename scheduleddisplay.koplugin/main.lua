@@ -4,7 +4,6 @@ local InfoMessage = require("ui/widget/infomessage")
 local ConfirmBox = require("ui/widget/confirmbox")
 local RadioButtonWidget = require("ui/widget/radiobuttonwidget")
 local SpinWidget = require("ui/widget/spinwidget")
-local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local LuaSettings = require("luasettings")
@@ -145,9 +144,8 @@ function ScheduledDisplay:_buildScheduleItems()
         local entry=e
         table.insert(items,{
             text_func=function() return clock(entry.time).."  "..self:_summary(entry) end,
-            callback=function(touchmenu_instance)
-                local i=find(self.schedule,entry)
-                if i then self:_edit(i,touchmenu_instance) end
+            sub_item_table_func=function()
+                return self:_buildEditItems(entry)
             end,
             hold_callback=function(touchmenu_instance)
                 self:_delete(entry,touchmenu_instance)
@@ -157,14 +155,13 @@ function ScheduledDisplay:_buildScheduleItems()
     return items
 end
 
-
-function ScheduledDisplay:_edit(i,parent_menu)
-    local e=self.schedule[i]; if not e then return end
+function ScheduledDisplay:_buildEditItems(e)
     local items={{
         text_func=function() return T(_("时间：%1"),clock(e.time)) end,
-        callback=function()
-            self:_time(e.time,function(t)
-                local old_i=find(self.schedule,e.time)
+        callback=function(touchmenu_instance)
+            local old_time=e.time
+            self:_time(old_time,function(t)
+                local old_i=find(self.schedule,old_time)
                 local new_i=find(self.schedule,t)
                 if new_i and new_i~=old_i then
                     UIManager:show(InfoMessage:new{text=_("该时间点已存在。"),timeout=2})
@@ -174,9 +171,8 @@ function ScheduledDisplay:_edit(i,parent_menu)
                 sort(self.schedule)
                 self:save()
                 self:reschedule()
-                if self.edit_menu then self.edit_menu:updateItems() end
-                if parent_menu then parent_menu:updateItems() end
-            end,self.edit_menu,parent_menu)
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,touchmenu_instance)
         end,
         keep_menu_open=true,
     }}
@@ -185,7 +181,9 @@ function ScheduledDisplay:_edit(i,parent_menu)
             text_func=function()
                 return T(_("前光亮度：%1"),e.brightness==UNCHANGED and _("不调整") or native(e.brightness,Powerd.fl_max))
             end,
-            callback=function(touchmenu_instance) self:_number(e,"brightness",Powerd.fl_max,touchmenu_instance) end,
+            callback=function(touchmenu_instance)
+                self:_number(e,"brightness",Powerd.fl_max,touchmenu_instance)
+            end,
             keep_menu_open=true,
         })
     end
@@ -194,7 +192,9 @@ function ScheduledDisplay:_edit(i,parent_menu)
             text_func=function()
                 return T(_("色温：%1"),e.warmth==UNCHANGED and _("不调整") or native(e.warmth,Powerd.fl_warmth_max))
             end,
-            callback=function(touchmenu_instance) self:_number(e,"warmth",Powerd.fl_warmth_max,touchmenu_instance) end,
+            callback=function(touchmenu_instance)
+                self:_number(e,"warmth",Powerd.fl_warmth_max,touchmenu_instance)
+            end,
             keep_menu_open=true,
         })
     end
@@ -204,14 +204,14 @@ function ScheduledDisplay:_edit(i,parent_menu)
                 local v=e.night_mode==UNCHANGED and _("不调整") or e.night_mode=="on" and _("开启") or _("关闭")
                 return T(_("夜间模式（反色）：%1"),v)
             end,
-            callback=function(touchmenu_instance) self:_night(e,touchmenu_instance) end,
+            callback=function(touchmenu_instance)
+                self:_night(e,touchmenu_instance)
+            end,
             keep_menu_open=true,
         })
     end
-    self.edit_menu=Menu:new{title=_("编辑时间点"),item_table=items,show_parent=self.ui}
-    UIManager:show(self.edit_menu)
+    return items
 end
-
 
 function ScheduledDisplay:_time(initial,cb,parent_menu,parent_schedule_menu)
     local h=math.floor(initial/60);local m=initial%60
@@ -300,7 +300,15 @@ function ScheduledDisplay:_add(parent_menu)
     self:_time(now()-now()%STEP,function(t)
         local i=find(self.schedule,t)
         if i then
-            self:_edit(i,parent_menu)
+            if parent_menu then
+                parent_menu.item_table=self:_buildScheduleItems()
+                parent_menu:updateItems()
+                local item=parent_menu.item_table[i+1]
+                if item then
+                    item.idx=i+1
+                    parent_menu:onMenuSelect(item)
+                end
+            end
             return
         end
         local e={time=t,brightness=UNCHANGED,warmth=UNCHANGED,night_mode=UNCHANGED}
@@ -308,8 +316,16 @@ function ScheduledDisplay:_add(parent_menu)
         sort(self.schedule)
         self:save()
         if self.enabled then self:reschedule() end
-        if parent_menu then parent_menu:updateItems() end
-        self:_edit(find(self.schedule,t),parent_menu)
+        if parent_menu then
+            parent_menu.item_table=self:_buildScheduleItems()
+            parent_menu:updateItems()
+            local index=find(self.schedule,t)
+            local item=index and parent_menu.item_table[index+1]
+            if item then
+                item.idx=index+1
+                parent_menu:onMenuSelect(item)
+            end
+        end
     end,parent_menu)
 end
 
