@@ -32,6 +32,16 @@ jobs:
         run: |
           zip -r scheduleddisplay.koplugin.zip scheduleddisplay.koplugin
 
+      - name: Remove superseded 0.1.2 release
+        if: ${{ steps.meta.outputs.version == '0.2.0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "v0.1.2" >/dev/null 2>&1; then
+            gh release delete "v0.1.2" --yes --cleanup-tag
+          fi
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
