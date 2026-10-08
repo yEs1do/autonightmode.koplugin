@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- 修正 KOReader 选择默认 English（美式英语）时仍显示中文的问题。
+- 现在会读取 KOReader 的语言设置，并将 English、English (US)、English (UK) 等英语区域设置统一使用插件自带英文界面。
+
 ## 0.1.1
 
 - 新增英文界面，自动跟随 KOReader 当前语言设置。
