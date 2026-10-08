@@ -1,9 +1,11 @@
 # Changelog
 
-## 0.1.2
+## 0.2.0
 
-- 修正 KOReader 选择默认 English（美式英语）时仍显示中文的问题。
-- 现在会读取 KOReader 的语言设置，并将 English、English (US)、English (UK) 等英语区域设置统一使用插件自带英文界面。
+- 修正 KOReader 选择默认 English 时语言值为 `C` 导致插件仍显示中文的问题。
+- 新增“关于”菜单，显示当前版本和作者。
+- 新增“手动检查更新”，联网后查询 GitHub 最新正式 Release；发现新版本时可打开 Releases 页面手动下载。
+- 为“关于”和更新检查相关文本补充英文翻译。
 
 ## 0.1.1
 
