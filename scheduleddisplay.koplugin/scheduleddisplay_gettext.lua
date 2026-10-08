@@ -61,8 +61,14 @@ local function getConfiguredLang()
 end
 
 local function normalizeLang(lang)
-    if not lang or lang == "" or lang == "C" then
+    if not lang or lang == "" then
         return lang
+    end
+
+    -- KOReader uses "C" for the default English (en_US) locale.
+    -- Map it to the plugin's bundled English translation.
+    if lang == "C" then
+        return "en"
     end
 
     -- Locale strings may contain an encoding suffix or a fallback chain.
