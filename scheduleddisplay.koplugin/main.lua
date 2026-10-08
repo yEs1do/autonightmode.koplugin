@@ -10,6 +10,7 @@ local LuaSettings = require("luasettings")
 local DataStorage = require("datastorage")
 local _ = require("scheduleddisplay_gettext")
 local T = require("ffi/util").template
+local Updater = require("scheduleddisplay_updater")
 local time = require("ui/time")
 local logger = require("logger")
 
@@ -20,6 +21,8 @@ local MAX = 24
 local STEP = 5
 local RAMP_MIN, RAMP_MAX, RAMP_STEP = 5, 60, 5
 local RAMP_INTERVAL = 0.05
+local VERSION = "0.2.0"
+local AUTHOR = "yEs1do"
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local function round(v) return math.floor(v + .5) end
@@ -388,6 +391,23 @@ function ScheduledDisplay:hasAutoWarmthConflict()
     if active==0 then return false end
     return G_reader_settings:nilOrTrue("autowarmth_control_warmth") or G_reader_settings:nilOrTrue("autowarmth_control_nightmode") or G_reader_settings:isTrue("autowarmth_fl_off_during_day")
 end
+function ScheduledDisplay:_buildAboutItems()
+    return {
+        {
+            text = T(_("当前版本：%1"), VERSION),
+        },
+        {
+            text = T(_("作者：%1"), AUTHOR),
+        },
+        {
+            text = _("手动检查更新"),
+            callback = function()
+                Updater.check(VERSION)
+            end,
+        },
+    }
+end
+
 function ScheduledDisplay:getMenu()
     local m={{
         text_func=function() return self.enabled and _("自动调节：已启用") or _("自动调节：已停用") end,
@@ -443,6 +463,11 @@ function ScheduledDisplay:getMenu()
             if touchmenu_instance then touchmenu_instance:updateItems() end
         end,
         keep_menu_open=true,
+    },{
+        text=_("关于"),
+        sub_item_table_func=function()
+            return self:_buildAboutItems()
+        end,
     }}
     if self:hasAutoWarmthConflict() then
         table.insert(m,1,{
