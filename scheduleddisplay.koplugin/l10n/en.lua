@@ -6,6 +6,7 @@ return {
     ["时间表"] = "Schedule",
     ["添加时间点"] = "Add time point",
     ["编辑时间点"] = "Edit time point",
+    ["时间：%1"] = "Time: %1",
     ["立即切换"] = "Apply now",
     ["前光亮度"] = "Frontlight brightness",
     ["前光亮度：%1"] = "Frontlight brightness: %1",
@@ -46,6 +47,6 @@ return {
     ["检查更新已取消。"] = "Update check cancelled.",
     ["检查更新失败，请检查网络连接后重试。"] = "Update check failed. Please check your network connection and try again.",
     ["当前已是最新版本：v%1"] = "You are already using the latest version: v%1",
-    ["发现新版本：v%1\\n当前版本：v%2\\n\\n请前往 GitHub Releases 下载。"] = "New version available: v%1\\nCurrent version: v%2\\n\\nPlease download it from GitHub Releases.",
+    ["发现新版本：v%1\n当前版本：v%2\n\n请前往 GitHub Releases 下载。"] = "New version available: v%1\nCurrent version: v%2\n\nPlease download it from GitHub Releases.",
     ["打开"] = "Open",
 }
