@@ -47,7 +47,31 @@ local function loadLangTable(lang)
     return tbl
 end
 
-local translation = loadLangTable(GetText.current_lang) or {}
+local function getConfiguredLang()
+    -- KOReader treats en_US as untranslated and keeps gettext.current_lang at "C".
+    -- Read the user's explicit language setting so the plugin can still select
+    -- its bundled English translation in that case.
+    if G_reader_settings then
+        local lang = G_reader_settings:readSetting("language")
+        if lang and lang ~= "" then
+            return lang
+        end
+    end
+    return GetText.current_lang
+end
+
+local function normalizeLang(lang)
+    if not lang or lang == "" or lang == "C" then
+        return lang
+    end
+
+    -- Locale strings may contain an encoding suffix or a fallback chain.
+    lang = lang:match("^[^:.]+") or lang
+    return lang:gsub("_", "-")
+end
+
+local configured_lang = normalizeLang(getConfiguredLang())
+local translation = loadLangTable(configured_lang) or {}
 
 return setmetatable({}, {
     __call = function(_self, msgid)
